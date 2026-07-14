@@ -106,6 +106,21 @@ const customActiveLineHighlighter = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations }
 )
 
+function errorLineHighlighter(activeLineNumber: number): Extension {
+  return EditorView.decorations.of((view: EditorView) => {
+    const builder = new RangeSetBuilder<Decoration>()
+    if (activeLineNumber > 0 && activeLineNumber <= view.state.doc.lines) {
+      const line = view.state.doc.line(activeLineNumber)
+      builder.add(
+        line.from,
+        line.from,
+        Decoration.line({ class: 'cm-errorLine' })
+      )
+    }
+    return builder.finish()
+  })
+}
+
 const customSyntaxHighlighting = HighlightStyle.define([
   { tag: tags.variableName, color: '#005cc5' },
   { tag: tags.function(tags.variableName), color: '#6f42c1' },
@@ -120,6 +135,7 @@ interface PythonEditorProps {
   isDebugging: boolean
   activeLine: number | null
   activeLineText: string | null
+  currentErrorLine: number
 }
 
 function PythonEditor({
@@ -128,6 +144,7 @@ function PythonEditor({
   isDebugging,
   activeLine,
   activeLineText,
+  currentErrorLine,
 }: PythonEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
 
@@ -140,13 +157,17 @@ function PythonEditor({
     if (isDebugging) {
       exts.push(hideCursorTheme)
       if (activeLine) {
-        exts.push(debugLineHighlighter(activeLine, activeLineText))
+        if (!currentErrorLine) {
+          exts.push(debugLineHighlighter(activeLine, activeLineText))
+        } else {
+          exts.push(errorLineHighlighter(currentErrorLine))
+        }
       }
     } else {
       exts.push(customActiveLineHighlighter)
     }
     return exts
-  }, [isDebugging, activeLine])
+  }, [isDebugging, activeLine, currentErrorLine])
 
   // Auto-scroll effect to keep active line in view.
   useEffect(() => {
@@ -293,6 +314,39 @@ function VariableInspector({
   )
 }
 
+function ErrorInspector({ errorText }: { errorText: string }) {
+  return (
+    <div style={{ ...styles.inspectorPane, backgroundColor: '#fff5f5' }}>
+      <h4
+        style={{
+          margin: '0 0 10px 0',
+          color: '#d32f2f',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}
+      >
+        Runtime Error
+      </h4>
+      <div
+        style={{
+          backgroundColor: '#ffebee',
+          border: '1px solid #ffcdd2',
+          borderRadius: '4px',
+          padding: '12px',
+          color: '#c62828',
+          fontFamily: 'monospace',
+          fontSize: '13px',
+          whiteSpace: 'pre-wrap',
+          overflowX: 'auto',
+        }}
+      >
+        {errorText}
+      </div>
+    </div>
+  )
+}
+
 export default function VisualDebugger() {
   const [code, setCode] = useState<string>(() => {
     const savedCode = localStorage.getItem('debugger_saved_code')
@@ -309,6 +363,8 @@ export default function VisualDebugger() {
   const [trace, setTrace] = useState<TraceStep[]>([])
   const [currentStep, setCurrentStep] = useState<number>(-1)
   const [isDebugging, setIsDebugging] = useState<boolean>(false)
+  const [currentError, setCurrentError] = useState<string>('')
+  const [currentErrorLine, setCurrentErrorLine] = useState<number>(0)
 
   const { runCode, isRunning } = usePyodide()
 
@@ -323,9 +379,15 @@ export default function VisualDebugger() {
     setIsDebugging(true)
     setTrace([])
     setCurrentStep(-1)
+    setCurrentError('')
+    setCurrentErrorLine(0)
 
     try {
       const rawTrace = await runCode(code)
+      if (rawTrace[0].error) {
+        setCurrentError(rawTrace[0].error)
+        setCurrentErrorLine(rawTrace[0].line)
+      }
 
       const shiftedTrace = rawTrace.map((step, index) => {
         const nextStep = rawTrace[index + 1]
@@ -348,7 +410,7 @@ export default function VisualDebugger() {
       }
     } catch (error: any) {
       console.error('Python Execution Error:', error)
-      alert('Error in Python code:\n' + error.message)
+      setCurrentError(error.message)
       setIsDebugging(false)
     }
   }
@@ -397,16 +459,22 @@ export default function VisualDebugger() {
           isDebugging={isDebugging}
           activeLine={activeLine}
           activeLineText={activeLineText}
+          currentErrorLine={currentErrorLine}
         />
-        <VariableInspector
-          groupedTrace={groupedTrace}
-          currentStep={currentStep}
-        />
+        {currentError ? (
+          <ErrorInspector errorText={currentError} />
+        ) : (
+          <VariableInspector
+            groupedTrace={groupedTrace}
+            currentStep={currentStep}
+          />
+        )}
       </div>
 
       <style>{`
         .cm-activeLine { background-color: #e6f2ff !important; }
         .cm-debugLine { background-color: #ffe0b2 !important; }
+        .cm-errorLine { background-color: #ffcdd2 !important; }
       `}</style>
     </div>
   )

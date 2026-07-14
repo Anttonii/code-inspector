@@ -1,11 +1,11 @@
-import sys
-import json
-import types
 import ast
+import json
+import sys
+import traceback
+import types
 from collections import defaultdict
-from dataclasses import dataclass, asdict, is_dataclass
-from typing import List, Union
-from typing import Dict, Any
+from dataclasses import asdict, dataclass, is_dataclass
+from typing import Any, Dict, List, Union
 
 
 class EnhancedJSONEncoder(json.JSONEncoder):
@@ -140,23 +140,46 @@ class ExecutionTracer:
 
         return self.trace_calls
 
+    def clear(self) -> None:
+        self.trace_data = []
+        self.step_count = 0
+
 
 def execute_and_trace(user_code):
     analyzer = NodeVisitor()
+    tracer = ExecutionTracer(analyzer=analyzer)
+
     try:
         tree = ast.parse(user_code, mode="exec")
         analyzer.visit(tree)
-    except SyntaxError:
-        pass  # Let exec() throw the actual error so we can catch it normally
-
-    tracer = ExecutionTracer(analyzer=analyzer)
-    user_namespace = {}
+    except SyntaxError as e:
+        tracer.trace_data.append(
+            TraceStep(
+                error=traceback.format_exc(), line=e.lineno or -1, vars={}, depth=0
+            )
+        )
+        return json.dumps(tracer.trace_data)
 
     sys.settrace(tracer.trace_calls)
+    user_namespace = {}
     try:
-        exec(user_code, user_namespace)
+        exec(user_code, globals=user_namespace)
     except Exception as e:
-        tracer.trace_data.append(TraceStep(line=-1, vars={}, error=str(e), depth=0))
+        # Assert we don't trace the actual error backtrace
+        sys.settrace(None)
+
+        tb = e.__traceback__
+        err_line = -1
+        while tb:
+            # Code executed via exec() gets assigned the filename '<string>'
+            if tb.tb_frame.f_code.co_filename == "<string>":
+                err_line = tb.tb_lineno
+            tb = tb.tb_next
+
+        tracer.clear()
+        tracer.trace_data.append(
+            TraceStep(error=traceback.format_exc(), line=err_line, vars={}, depth=0)
+        )
     finally:
         sys.settrace(None)
 
