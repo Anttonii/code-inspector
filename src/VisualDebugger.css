@@ -59,7 +59,7 @@
 .inspector-pane {
   flex: 1;
   min-height: 250px;
-  padding: 20px;
+  padding: 16px 20px 16px 20px;
   background-color: #fcfcfc;
   overflow: auto;
 }
@@ -97,6 +97,15 @@
   border-bottom: 1px solid #e1e4e8;
   padding: 8px;
   color: #d73a49;
+}
+
+.block-table-container {
+  margin-top: 8px;
+}
+
+.block-table-hero {
+  margin: 0 0 12px 0;
+  color: #555;
 }
 
 .block-table {

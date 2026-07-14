@@ -251,10 +251,8 @@ function VariableInspector({
   return (
     <div className="inspector-pane">
       {activeIterationBlock.length > 1 && (
-        <div style={{ marginTop: '24px' }}>
-          <h4 style={{ margin: '0 0 10px 0', color: '#555' }}>
-            Block Execution History
-          </h4>
+        <div className="block-table-container">
+          <h4 className="block-table-hero">Block Execution History</h4>
           <div className="block-table">
             <table className="var-table font-small">
               <thead>
@@ -434,14 +432,15 @@ export default function VisualDebugger() {
           activeLineText={activeLineText}
           currentErrorLine={currentErrorLine}
         />
-        {currentError ? (
-          <ErrorInspector errorText={currentError} />
-        ) : (
-          <VariableInspector
-            groupedTrace={groupedTrace}
-            currentStep={currentStep}
-          />
-        )}
+        {isDebugging &&
+          (currentError ? (
+            <ErrorInspector errorText={currentError} />
+          ) : (
+            <VariableInspector
+              groupedTrace={groupedTrace}
+              currentStep={currentStep}
+            />
+          ))}
       </div>
     </div>
   )
