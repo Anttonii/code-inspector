@@ -48,6 +48,7 @@ class TraceStep:
 class NodeVisitor(ast.NodeVisitor):
     def __init__(self):
         self.conditionals = defaultdict(dataclass)
+        self.untracked_lines = set()
 
     def parse_condition(
         self, node: ast.AST
@@ -93,6 +94,12 @@ class NodeVisitor(ast.NodeVisitor):
         self.conditionals[line_no] = self.parse_condition(test)
         self.generic_visit(node)
 
+    def visit_Call(self, node):
+        if isinstance(node.func, ast.Name) and node.func.id == "untrack":
+            self.untracked_lines.add(node.lineno)
+
+        self.generic_visit(node)
+
 
 class ExecutionTracer:
     def __init__(self, analyzer: NodeVisitor, max_steps: int = 2000):
@@ -100,9 +107,18 @@ class ExecutionTracer:
         self.step_count = 0
         self.max_steps = max_steps
         self.analyzer = analyzer
+        self.untracked_vars = set()
 
     def trace_calls(self, frame, event, arg):
+        if event == "call":
+            if frame.f_code.co_name == "untrack_vars":
+                return None
+
         if event == "line":
+            line_no = frame.f_lineno
+            if line_no in self.analyzer.untracked_lines:
+                return self.trace_calls
+
             self.step_count += 1
             if self.step_count > self.max_steps:
                 sys.settrace(None)
@@ -114,12 +130,12 @@ class ExecutionTracer:
                 k: v
                 for k, v in frame.f_locals.items()
                 if not k.startswith("__")
-                if type(v) is not types.FunctionType
+                if not callable(v)
+                if k not in self.untracked_vars
             }
 
             depth = 0
             curr = frame
-            line_no = frame.f_lineno
 
             while curr:
                 depth += 1
@@ -139,6 +155,10 @@ class ExecutionTracer:
             self.trace_data.append(call_trace)
 
         return self.trace_calls
+    
+    def untrack_vars(self, *var_names):
+        for name in var_names:
+            self.untracked_vars.add(str(name))
 
     def clear(self) -> None:
         self.trace_data = []
@@ -162,7 +182,9 @@ def execute_and_trace(user_code):
         )
 
     sys.settrace(tracer.trace_calls)
-    user_namespace = {}
+    user_namespace = {
+        "untrack": tracer.untrack_vars
+    }
     try:
         exec(user_code, globals=user_namespace)
     except Exception as e:
