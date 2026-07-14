@@ -15,13 +15,32 @@ import {
   Decoration,
   ViewPlugin,
   ViewUpdate,
+  WidgetType,
 } from '@codemirror/view'
 import { RangeSetBuilder } from '@codemirror/state'
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { usePyodide } from './usePyodide'
 import type { TraceStep } from './types'
-import { groupTraceIntoIterations } from './processTrace'
+import { groupTraceIntoIterations, evaluateStepCondition } from './processTrace'
+
+class ActiveLineTextWidget extends WidgetType {
+  text: string
+
+  constructor(text: string) {
+    super()
+    this.text = text
+  }
+
+  toDOM() {
+    const span = document.createElement('span')
+    span.className = 'cm-activeLineText' // We will style this later
+    span.textContent = this.text
+    // Prevent the widget from hiding the actual code if the user clicks on it
+    span.setAttribute('aria-hidden', 'true')
+    return span
+  }
+}
 
 const hideCursorTheme = EditorView.theme({
   '.cm-content': { caretColor: 'transparent' },
@@ -30,7 +49,10 @@ const hideCursorTheme = EditorView.theme({
   },
 })
 
-function debugLineHighlighter(activeLineNumber: number): Extension {
+function debugLineHighlighter(
+  activeLineNumber: number,
+  activeLineText: string | null
+): Extension {
   return EditorView.decorations.of((view: EditorView) => {
     const builder = new RangeSetBuilder<Decoration>()
     if (activeLineNumber > 0 && activeLineNumber <= view.state.doc.lines) {
@@ -40,6 +62,17 @@ function debugLineHighlighter(activeLineNumber: number): Extension {
         line.from,
         Decoration.line({ class: 'cm-debugLine' })
       )
+
+      if (activeLineText) {
+        builder.add(
+          line.to,
+          line.to,
+          Decoration.widget({
+            widget: new ActiveLineTextWidget(activeLineText),
+            side: 1,
+          })
+        )
+      }
     }
     return builder.finish()
   })
@@ -86,6 +119,7 @@ interface PythonEditorProps {
   onChange: (value: string) => void
   isDebugging: boolean
   activeLine: number | null
+  activeLineText: string | null
 }
 
 function PythonEditor({
@@ -93,6 +127,7 @@ function PythonEditor({
   onChange,
   isDebugging,
   activeLine,
+  activeLineText,
 }: PythonEditorProps) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
 
@@ -105,7 +140,7 @@ function PythonEditor({
     if (isDebugging) {
       exts.push(hideCursorTheme)
       if (activeLine) {
-        exts.push(debugLineHighlighter(activeLine))
+        exts.push(debugLineHighlighter(activeLine, activeLineText))
       }
     } else {
       exts.push(customActiveLineHighlighter)
@@ -266,8 +301,11 @@ export default function VisualDebugger() {
   const { runCode, isRunning } = usePyodide()
 
   const groupedTrace = useMemo(() => groupTraceIntoIterations(trace), [trace])
+
   const activeLine: number | null =
     currentStep >= 0 ? (trace[currentStep]?.line ?? null) : null
+  const activeLineText: string | null =
+    currentStep >= 0 ? evaluateStepCondition(trace[currentStep]) : null
 
   const startDebugging = async () => {
     setIsDebugging(true)
@@ -346,6 +384,7 @@ export default function VisualDebugger() {
           onChange={setCode}
           isDebugging={isDebugging}
           activeLine={activeLine}
+          activeLineText={activeLineText}
         />
         <VariableInspector
           groupedTrace={groupedTrace}
