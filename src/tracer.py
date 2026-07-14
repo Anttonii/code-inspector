@@ -5,6 +5,7 @@ import ast
 from collections import defaultdict
 from dataclasses import dataclass, asdict, is_dataclass
 from typing import List, Union
+from typing import Dict, Any
 
 
 class EnhancedJSONEncoder(json.JSONEncoder):
@@ -38,7 +39,7 @@ class BoolCondition:
 @dataclass()
 class TraceStep:
     line: int
-    vars: dict
+    vars: Dict[str, Any]
     depth: int
     error: str | None = None
     conditional: BoolCondition | ConditionalStatement | None = None
@@ -110,7 +111,7 @@ class ExecutionTracer:
                 )
 
             locals_dict = {
-                k: repr(v)
+                k: v
                 for k, v in frame.f_locals.items()
                 if not k.startswith("__")
                 if type(v) is not types.FunctionType

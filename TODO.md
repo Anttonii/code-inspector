@@ -5,6 +5,7 @@
 - [ ] Handle conditionals and in debugging show the evaluation on the line
   - [x] Parse the AST and record conditionals.
   - [x] Evaluate conditionals in the frontend (?)
+    - [x] Evaluate array indexing
   - [x] Show the result of the evaluation on the same line as the conditional with green check mark or red X
 - [ ] Move CodeMirror extensions into their own file
 

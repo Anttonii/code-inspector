@@ -20,7 +20,7 @@ export type Conditional = BooleanCondition | CompareCondition
 
 export interface TraceStep {
   line: number
-  vars: Record<string, string>
+  vars: Record<string, any>
   depth: number
   error?: string
   conditional?: Conditional

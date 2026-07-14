@@ -29,35 +29,117 @@ export function groupTraceIntoIterations(trace: TraceStep[]): TraceStep[][] {
   return iterations
 }
 
-// Parse a string value (number, string, boolean, or variable reference)
-function parseValue(value: string, data: Record<string, any>): any {
-  if (/^-?\d+\.?\d*$/.test(value)) {
-    return Number(value)
+function resolvePath(path: string, data: Record<string, any>): any {
+  if (!path) return undefined
+
+  if (/^-?\d+\.?\d*$/.test(path)) {
+    return Number(path)
   }
 
-  if (value === 'true') return true
-  if (value === 'false') return false
-
-  if (value.startsWith('"') && value.endsWith('"')) {
-    return value.slice(1, -1)
-  }
-  if (value.startsWith("'") && value.endsWith("'")) {
-    return value.slice(1, -1)
-  }
-
-  if (value in data) {
-    return data[value]
+  if (path === 'true') return true
+  if (path === 'false') return false
+  if (path === 'null') return null
+  if (path === 'undefined') return undefined
+  if (
+    (path.startsWith('"') && path.endsWith('"')) ||
+    (path.startsWith("'") && path.endsWith("'"))
+  ) {
+    return path.slice(1, -1)
   }
 
-  return value
+  const tokens = tokenizePath(path)
+  let current: any = data
+
+  for (const token of tokens) {
+    if (current === undefined || current === null) {
+      return undefined
+    }
+
+    console.log(current)
+    console.log(typeof current)
+
+    if (Array.isArray(current)) {
+      console.log('hello?')
+      if (typeof token === 'number') {
+        current = current[token]
+      } else if (typeof token === 'string') {
+        current = current[data[token]]
+      }
+    } else {
+      if (typeof token === 'number') {
+        current = current[token]
+      } else if (typeof token === 'string') {
+        current = current[token]
+      }
+    }
+  }
+
+  return current
+}
+
+/**
+ * Tokenize a path expression into parts.
+ * Example: "arr[0]" -> ["arr", 0]
+ *          "obj.key" -> ["obj", "key"]
+ *          "data.users[0].age" -> ["data", "users", 0, "age"]
+ */
+function tokenizePath(path: string): (string | number)[] {
+  const tokens: (string | number)[] = []
+  let current = ''
+  let i = 0
+
+  while (i < path.length) {
+    const char = path[i]
+
+    if (char === '[') {
+      // Start of array index
+      if (current) {
+        tokens.push(current)
+        current = ''
+      }
+
+      // Parse the index until closing bracket
+      let indexStr = ''
+      i++ // Skip '['
+      while (i < path.length && path[i] !== ']') {
+        indexStr += path[i]
+        i++
+      }
+
+      // Parse as number if possible
+      const index = Number(indexStr)
+      tokens.push(isNaN(index) ? indexStr : index)
+      i++ // Skip ']'
+      continue
+    }
+
+    if (char === '.') {
+      // Property access
+      if (current) {
+        tokens.push(current)
+        current = ''
+      }
+      i++
+      continue
+    }
+
+    current += char
+    i++
+  }
+
+  if (current) {
+    tokens.push(current)
+  }
+
+  return tokens
 }
 
 export function evaluateCompare(
   condition: CompareCondition,
-  vars: Record<string, string>
+  vars: Record<string, any>
 ): boolean {
-  const leftValue = vars[condition.left]
-  const rightValue = parseValue(condition.right, vars)
+  const leftValue = resolvePath(condition.left, vars)
+  const rightValue = resolvePath(condition.right, vars)
 
   switch (condition.op) {
     case '==':
@@ -85,7 +167,7 @@ export function evaluateCompare(
 
 export function evaluateCondition(
   condition: Conditional,
-  vars: Record<string, string>
+  vars: Record<string, any>
 ): boolean {
   if (condition.type == 'compare') {
     return evaluateCompare(condition, vars)
@@ -106,12 +188,12 @@ export function evaluateCondition(
 
 function conditionToString(
   condition: Conditional,
-  vars: Record<string, string>,
+  vars: Record<string, any>,
   parentOperator?: 'and' | 'or'
 ): string {
   if (condition.type === 'compare') {
-    const leftValue = vars[condition.left]
-    const rightValue = parseValue(condition.right, vars)
+    const leftValue = resolvePath(condition.left, vars)
+    const rightValue = resolvePath(condition.right, vars)
 
     return `${leftValue} ${condition.op} ${rightValue}`
   }
