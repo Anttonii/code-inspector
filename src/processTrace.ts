@@ -55,11 +55,7 @@ function resolvePath(path: string, data: Record<string, any>): any {
       return undefined
     }
 
-    console.log(current)
-    console.log(typeof current)
-
     if (Array.isArray(current)) {
-      console.log('hello?')
       if (typeof token === 'number') {
         current = current[token]
       } else if (typeof token === 'string') {

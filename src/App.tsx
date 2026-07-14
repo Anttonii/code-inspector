@@ -211,6 +211,18 @@ function VariableInspector({
     new Set(activeIterationBlock.flatMap((step) => Object.keys(step.vars)))
   )
 
+  const varToString = (v: any) => {
+    if (v === undefined || v === null) {
+      return ''
+    }
+
+    if (Array.isArray(v)) {
+      return JSON.stringify(v)
+    } else {
+      return v
+    }
+  }
+
   useEffect(() => {
     if (activeRowRef.current) {
       activeRowRef.current.scrollIntoView({
@@ -266,7 +278,7 @@ function VariableInspector({
                       <td style={styles.varName}>L{step.line}</td>
                       {allVarNames.map((name) => (
                         <td key={name} style={styles.varValue}>
-                          {step.vars[name] || ''}
+                          {varToString(step.vars[name])}
                         </td>
                       ))}
                     </tr>
