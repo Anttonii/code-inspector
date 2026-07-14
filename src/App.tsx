@@ -231,7 +231,7 @@ function VariableInspector({
                       <td style={styles.varName}>L{step.line}</td>
                       {allVarNames.map((name) => (
                         <td key={name} style={styles.varValue}>
-                          {step.vars[name] || '-'}
+                          {step.vars[name] || ''}
                         </td>
                       ))}
                     </tr>
