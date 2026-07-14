@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useRef,
-  CSSProperties,
-} from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import CodeMirror, {
   ReactCodeMirrorRef,
   Extension,
@@ -23,6 +17,7 @@ import { tags } from '@lezer/highlight'
 import { usePyodide } from './usePyodide'
 import type { TraceStep } from './types'
 import { groupTraceIntoIterations, evaluateStepCondition } from './processTrace'
+import './VisualDebugger.css'
 
 class ActiveLineTextWidget extends WidgetType {
   text: string
@@ -186,7 +181,7 @@ function PythonEditor({
   }, [activeLine])
 
   return (
-    <div style={styles.editorPane}>
+    <div className="editor-pane">
       <CodeMirror
         value={code}
         ref={editorRef}
@@ -254,27 +249,19 @@ function VariableInspector({
   }, [currentStep])
 
   return (
-    <div style={styles.inspectorPane}>
+    <div className="inspector-pane">
       {activeIterationBlock.length > 1 && (
         <div style={{ marginTop: '24px' }}>
           <h4 style={{ margin: '0 0 10px 0', color: '#555' }}>
             Block Execution History
           </h4>
-          <div
-            style={{
-              overflowX: 'auto',
-              overflowY: 'auto',
-              maxHeight: '250px',
-              border: '1px solid #eee',
-              borderRadius: '4px',
-            }}
-          >
-            <table style={{ ...styles.varTable, fontSize: '12px' }}>
+          <div className="block-table">
+            <table className="var-table font-small">
               <thead>
                 <tr>
-                  <th style={styles.tableHeader}>Line</th>
+                  <th className="table-header">Line</th>
                   {allVarNames.map((name) => (
-                    <th key={name} style={styles.tableHeader}>
+                    <th key={name} className="table-header">
                       {name}
                     </th>
                   ))}
@@ -296,9 +283,9 @@ function VariableInspector({
                           : 'transparent',
                       }}
                     >
-                      <td style={styles.varName}>L{step.line}</td>
+                      <td className="var-name">L{step.line}</td>
                       {allVarNames.map((name) => (
-                        <td key={name} style={styles.varValue}>
+                        <td key={name} className="var-value">
                           {varToString(step.vars[name])}
                         </td>
                       ))}
@@ -316,33 +303,9 @@ function VariableInspector({
 
 function ErrorInspector({ errorText }: { errorText: string }) {
   return (
-    <div style={{ ...styles.inspectorPane, backgroundColor: '#fff5f5' }}>
-      <h4
-        style={{
-          margin: '0 0 10px 0',
-          color: '#d32f2f',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-        }}
-      >
-        Runtime Error
-      </h4>
-      <div
-        style={{
-          backgroundColor: '#ffebee',
-          border: '1px solid #ffcdd2',
-          borderRadius: '4px',
-          padding: '12px',
-          color: '#c62828',
-          fontFamily: 'monospace',
-          fontSize: '13px',
-          whiteSpace: 'pre-wrap',
-          overflowX: 'auto',
-        }}
-      >
-        {errorText}
-      </div>
+    <div className="inspector-pane bg-grey">
+      <h4 className="error-hero">Runtime Error</h4>
+      <div className="stacktrace-container">{errorText}</div>
     </div>
   )
 }
@@ -422,37 +385,47 @@ export default function VisualDebugger() {
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.toolbar}>
+    <div className="container">
+      <div className="toolbar">
         {!isDebugging ? (
-          <button onClick={startDebugging} disabled={isRunning}>
-            {isRunning ? 'Running..' : 'Debug Code'}
+          <button
+            className="toolbar-btn"
+            onClick={startDebugging}
+            disabled={isRunning}
+          >
+            {isRunning ? 'Executing..' : 'Execute'}
           </button>
         ) : (
           <>
-            <button onClick={stopDebugging} style={{ color: 'red' }}>
-              Stop
-            </button>
-            <button
-              disabled={currentStep <= 0}
-              onClick={() => setCurrentStep((prev) => prev - 1)}
-            >
-              Step Back
-            </button>
-            <button
-              disabled={currentStep === trace.length - 1}
-              onClick={() => setCurrentStep((prev) => prev + 1)}
-            >
-              Step Forward
-            </button>
-            <span style={{ marginLeft: '10px', fontSize: '12px' }}>
-              Step {currentStep + 1} / {trace.length}
-            </span>
+            <div className="toolbar-container">
+              <button className="toolbar-btn danger" onClick={stopDebugging}>
+                Stop
+              </button>
+              <button
+                className="toolbar-btn"
+                disabled={currentStep <= 0}
+                onClick={() => setCurrentStep((prev) => prev - 1)}
+              >
+                Step Back
+              </button>
+              <button
+                className="toolbar-btn"
+                disabled={currentStep === trace.length - 1}
+                onClick={() => setCurrentStep((prev) => prev + 1)}
+              >
+                Step Forward
+              </button>
+            </div>
+            <div className="toolbar-container">
+              <span className="step-text">
+                Step {currentStep + 1} / {trace.length}
+              </span>
+            </div>
           </>
         )}
       </div>
 
-      <div style={styles.layout}>
+      <div className="layout">
         <PythonEditor
           code={code}
           onChange={setCode}
@@ -470,70 +443,6 @@ export default function VisualDebugger() {
           />
         )}
       </div>
-
-      <style>{`
-        .cm-activeLine { background-color: #e6f2ff !important; }
-        .cm-debugLine { background-color: #ffe0b2 !important; }
-        .cm-errorLine { background-color: #ffcdd2 !important; }
-      `}</style>
     </div>
   )
-}
-
-const styles: Record<string, CSSProperties> = {
-  container: {
-    width: '90vw',
-    maxWidth: '1000px',
-    maxHeight: '100%',
-    margin: '40px auto',
-    fontFamily: 'sans-serif',
-  },
-  toolbar: {
-    padding: '10px',
-    backgroundColor: '#f0f0f0',
-    border: '1px solid #ccc',
-    borderBottom: 'none',
-    display: 'flex',
-    gap: '10px',
-    alignItems: 'center',
-  },
-  layout: {
-    display: 'flex',
-    maxHeight: '75vh',
-    border: '1px solid #ccc',
-    flexDirection: 'column',
-  },
-  editorPane: {
-    flex: 2,
-    borderRight: '1px solid #ccc',
-    overflow: 'auto',
-    textAlign: 'left',
-  },
-  inspectorPane: {
-    flex: 1,
-    padding: '10px',
-    backgroundColor: '#fafafa',
-    overflow: 'auto',
-  },
-  emptyVars: { color: '#888', fontStyle: 'italic', fontSize: '14px' },
-  varTable: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: '14px',
-    fontFamily: 'monospace',
-    textAlign: 'left',
-  },
-  varName: {
-    borderBottom: '1px solid #eee',
-    padding: '4px',
-    color: '#0066cc',
-    width: '40%',
-  },
-  varValue: { borderBottom: '1px solid #eee', padding: '4px', color: '#d14' },
-  tableHeader: {
-    borderBottom: '2px solid #ccc',
-    padding: '4px',
-    textAlign: 'left',
-    color: '#333',
-  },
 }

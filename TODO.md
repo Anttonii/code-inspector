@@ -14,4 +14,4 @@
   - [x] Show the user the stacktrace
   - [x] Highlight the line that caused the error
 - [ ] Add compact mode that contains the operations of a single loop execution.
-- [ ] Improve the overall look and feel
+- [x] Improve the overall look and feel
