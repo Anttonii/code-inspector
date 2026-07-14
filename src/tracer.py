@@ -153,12 +153,13 @@ def execute_and_trace(user_code):
         tree = ast.parse(user_code, mode="exec")
         analyzer.visit(tree)
     except SyntaxError as e:
-        tracer.trace_data.append(
-            TraceStep(
-                error=traceback.format_exc(), line=e.lineno or -1, vars={}, depth=0
-            )
+        sys.settrace(None)
+        err_line = e.lineno or -1
+        
+        return json.dumps(
+            [TraceStep(error=traceback.format_exc(), line=err_line, vars={}, depth=0)],
+            cls=EnhancedJSONEncoder,
         )
-        return json.dumps(tracer.trace_data)
 
     sys.settrace(tracer.trace_calls)
     user_namespace = {}
