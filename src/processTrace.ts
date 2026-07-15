@@ -1,5 +1,73 @@
 import type { TraceStep, Conditional, CompareCondition } from './types'
 
+export interface TraceStepNode {
+  step: TraceStep
+  next: TraceStepNode | null
+  prev: TraceStepNode | null
+}
+
+export function buildLinkedTrace(
+  trace: TraceStep[],
+  startIndex = 0,
+  prevNode: TraceStepNode | null = null
+): {
+  head: TraceStepNode | null
+  tail: TraceStepNode | null
+  resumeIndex: number
+} {
+  if (startIndex >= trace.length) {
+    return { head: null, tail: null, resumeIndex: startIndex }
+  }
+
+  // The first step belongs to the current frame
+  const head: TraceStepNode = {
+    step: trace[startIndex],
+    next: null,
+    prev: prevNode,
+  }
+  let current = head
+  let i = startIndex + 1
+
+  while (i < trace.length) {
+    const step = trace[i]
+
+    // Scenario A: Standard execution within the same frame
+    // or the backstep from a child back to its parent.
+    if (
+      step.frame_id === current.step.frame_id ||
+      step.frame_id === current.step.parent_frame_id
+    ) {
+      const newNode: TraceStepNode = {
+        step,
+        next: null,
+        prev: current,
+      }
+      current.next = newNode
+      current = newNode
+      i++
+    }
+    // Scenario B: We step INTO a child function
+    else if (step.parent_frame_id === current.step.frame_id) {
+      let {
+        head: childHead,
+        resumeIndex,
+        tail: childTail,
+      } = buildLinkedTrace(trace, i)
+      if (childHead && childTail) {
+        childHead.prev = current
+        current.next = childHead
+        current = childTail
+      }
+      i = resumeIndex + 1
+    } else {
+      break
+    }
+  }
+
+  // Return the linked list head, and where the parent should resume reading
+  return { head, resumeIndex: i, tail: current }
+}
+
 export function groupTraceIntoIterations(trace: TraceStep[]): TraceStep[][] {
   const iterations: TraceStep[][] = []
   let currentIteration: TraceStep[] = []

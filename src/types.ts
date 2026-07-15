@@ -23,6 +23,9 @@ export interface TraceStep {
   vars: Record<string, any>
   depth: number
   conditional?: Conditional
+  func_name: string
+  frame_id: number
+  parent_frame_id?: number
 }
 
 export interface ErrorInfo {

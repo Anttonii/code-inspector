@@ -42,6 +42,9 @@ class TraceStep:
     line: int
     vars: Dict[str, Any]
     depth: int
+    frame_id: int
+    parent_frame_id: int | None
+    func_name: str
     conditional: BoolCondition | ConditionalStatement | None = None
 
 @dataclass(frozen=True)
@@ -49,7 +52,7 @@ class ErrorInfo:
     line: int
     message: str
 
-@dataclass()
+@dataclass(frozen=True)
 class TracerData:
     steps: List[TraceStep]
     untracked_vars: List[str]
@@ -120,6 +123,9 @@ class ExecutionTracer:
         self.untracked_vars = set()
         self.error = None
 
+        self.frame_to_id = {}
+        self.next_frame_id = 0
+
     def trace_calls(self, frame, event, arg):
         if event == "call":
             if frame.f_code.co_name == "untrack_vars":
@@ -150,11 +156,25 @@ class ExecutionTracer:
             while curr:
                 depth += 1
                 curr = curr.f_back
+            
+            if frame not in self.frame_to_id:
+                self.frame_to_id[frame] = self.next_frame_id
+                self.next_frame_id += 1
+            
+            current_frame_id = self.frame_to_id[frame]
+            func_name = frame.f_code.co_name
+
+            parent_frame_id = None
+            if frame.f_back and frame.f_back in self.frame_to_id:
+                parent_frame_id = self.frame_to_id[frame.f_back]
 
             call_trace = TraceStep(
                 line=line_no,
                 vars=locals_dict,
                 depth=depth,
+                func_name=func_name,
+                frame_id=current_frame_id,
+                parent_frame_id=parent_frame_id,
                 conditional=None,
             )
 

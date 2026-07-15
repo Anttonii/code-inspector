@@ -16,7 +16,11 @@ import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { usePyodide } from './usePyodide'
 import type { TraceStep } from './types'
-import { groupTraceIntoIterations, evaluateStepCondition } from './processTrace'
+import {
+  groupTraceIntoIterations,
+  evaluateStepCondition,
+  buildLinkedTrace,
+} from './processTrace'
 import './VisualDebugger.css'
 
 class ActiveLineTextWidget extends WidgetType {
@@ -395,6 +399,7 @@ export default function VisualDebugger() {
 
       setTrace(shiftedTrace)
       setUntrackedVars(rawTrace.untracked_vars)
+      console.log(buildLinkedTrace(rawTrace.steps))
 
       if (shiftedTrace.length > 0) {
         setCurrentStep(0)
