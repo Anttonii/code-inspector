@@ -6,7 +6,7 @@
 - [x] Move the inspector pane to the right of the code editor
 - [x] Configure line wrapping for the code editor
 - [x] Untrack should only hide the untracked variables from inspector pane, not remove them from recorded vars
-- [ ] Add an additional pane under the code editor that captures the print statement outputs and shows them in a list
+- [x] Add an additional pane under the code editor that captures the print statement outputs and shows them in a list
   - [ ] Ideally we could also just render output if it's in HTML, since this would allow the inspector to display items such as matplotlib plots
 - [x] Recursive function invocations get improperly recorded on the inspector pane, namely in the backtrack step
   - [x] Add frame information to the trace step and rewrite frontend trace grouping by frame id.

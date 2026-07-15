@@ -15,7 +15,7 @@ import { RangeSetBuilder } from '@codemirror/state'
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { usePyodide } from './usePyodide'
-import type { TraceStepNode, FrameMap } from './types'
+import { type TraceStepNode, type FrameMap, TracerStdOutput } from './types'
 import { evaluateStepCondition, buildLinkedTrace } from './processTrace'
 import './VisualDebugger.css'
 
@@ -325,6 +325,9 @@ export default function VisualDebugger() {
   const [currentError, setCurrentError] = useState<string>('')
   const [currentErrorLine, setCurrentErrorLine] = useState<number>(0)
 
+  const [tracerStdOut, setTracerStdOut] = useState<TracerStdOutput>({})
+  const [consoleOutput, setConsoleOutput] = useState<string>('')
+
   const { runCode, isRunning } = usePyodide()
 
   const activeLine: number | null = currentNode ? currentNode.step.line : null
@@ -351,6 +354,20 @@ export default function VisualDebugger() {
     }
   }, [isDebugging, isRunning, currentNode])
 
+  useEffect(() => {
+    let newConsoleOutput = ''
+    if (currentNode) {
+      for (const [key, value] of Object.entries(tracerStdOut)) {
+        if (parseInt(key) <= currentNode.stepIndex) {
+          newConsoleOutput += value
+        } else {
+          break
+        }
+      }
+    }
+    setConsoleOutput(newConsoleOutput)
+  }, [currentNode])
+
   const startDebugging = async () => {
     setIsDebugging(true)
     setCurrentNode(null)
@@ -373,6 +390,7 @@ export default function VisualDebugger() {
       setCurrentNode(linkedTrace.head)
       setFrameMap(newFrameMap)
       setUntrackedVars(rawTrace.untracked_vars)
+      setTracerStdOut(rawTrace.stdout)
     } catch (error: any) {
       console.error('Python Execution Error:', error)
       setCurrentError(error.message)
@@ -450,6 +468,7 @@ export default function VisualDebugger() {
             )
           ))}
       </div>
+      {consoleOutput && <div className="terminal">{consoleOutput}</div>}
     </div>
   )
 }

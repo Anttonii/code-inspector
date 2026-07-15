@@ -18,6 +18,8 @@ export interface CompareCondition {
 
 export type Conditional = BooleanCondition | CompareCondition
 
+export type TracerStdOutput = { [key: number]: string }
+
 export interface TraceStep {
   line: number
   vars: Record<string, any>
@@ -45,6 +47,7 @@ export interface TracerOutput {
   steps: TraceStep[]
   untracked_vars: string[]
   error?: ErrorInfo
+  stdout: TracerStdOutput
 }
 
 export interface WorkerOutput {

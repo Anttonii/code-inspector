@@ -1,6 +1,7 @@
 import ast
 import json
 import sys
+import io
 import traceback
 from collections import defaultdict
 from dataclasses import asdict, dataclass, is_dataclass
@@ -56,7 +57,8 @@ class ErrorInfo:
 class TracerData:
     steps: List[TraceStep]
     untracked_vars: List[str]
-    error: ErrorInfo | None = None
+    stdout: dict[int, str]
+    error: ErrorInfo | None
 
 class NodeVisitor(ast.NodeVisitor):
     def __init__(self):
@@ -113,7 +115,6 @@ class NodeVisitor(ast.NodeVisitor):
 
         self.generic_visit(node)
 
-
 class ExecutionTracer:
     def __init__(self, analyzer: NodeVisitor, max_steps: int = 2000):
         self.trace_data = []
@@ -125,6 +126,8 @@ class ExecutionTracer:
 
         self.frame_to_id = {}
         self.next_frame_id = 0
+        self.stdout = defaultdict(str)
+        self.current_stdout_step = -1
 
     def _copy_or_pass(self, v: Any):
         if isinstance(v, list):
@@ -134,8 +137,13 @@ class ExecutionTracer:
         return v
 
     def trace_calls(self, frame, event, arg):
+        untraced_calls = [
+            "untrack_vars",
+            "print_override"
+        ]
+
         if event == "call":
-            if frame.f_code.co_name == "untrack_vars":
+            if frame.f_code.co_name in untraced_calls:
                 return None
 
         if event == "line":
@@ -171,6 +179,12 @@ class ExecutionTracer:
             current_frame_id = self.frame_to_id[frame]
             func_name = frame.f_code.co_name
 
+            if "print" in frame.f_code.co_names:
+                self.current_stdout_step = self.step_count
+
+            if func_name in untraced_calls:
+                return self.trace_calls
+
             parent_frame_id = None
             if frame.f_back and frame.f_back in self.frame_to_id:
                 parent_frame_id = self.frame_to_id[frame.f_back]
@@ -196,6 +210,13 @@ class ExecutionTracer:
     def untrack_vars(self, *var_names):
         for name in var_names:
             self.untracked_vars.add(str(name))
+    
+    def print_override(self, *args, **kwargs):
+        output = io.StringIO()
+        print(*args, file=output, **kwargs)
+        contents = output.getvalue()
+        output.close()
+        self.stdout[self.current_stdout_step] += contents
 
     def clear(self) -> None:
         self.trace_data = []
@@ -210,7 +231,8 @@ class ExecutionTracer:
         return TracerData(
             steps=self.trace_data,
             untracked_vars=list(self.untracked_vars),
-            error=self.error
+            error=self.error,
+            stdout=self.stdout
         )
 
 def execute_and_trace(user_code):
@@ -230,10 +252,12 @@ def execute_and_trace(user_code):
             cls=EnhancedJSONEncoder,
         )
 
-    sys.settrace(tracer.trace_calls)
     user_namespace = {
-        "untrack": tracer.untrack_vars
+        "untrack": tracer.untrack_vars,
+        "print": tracer.print_override,
     }
+    sys.settrace(tracer.trace_calls)
+
     try:
         exec(user_code, globals=user_namespace)
     except Exception as e:
@@ -253,4 +277,6 @@ def execute_and_trace(user_code):
     finally:
         sys.settrace(None)
 
+    print(tracer.stdout)
+    print(tracer.trace_data)
     return json.dumps(tracer, cls=EnhancedJSONEncoder)
