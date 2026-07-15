@@ -11,7 +11,7 @@
 - [x] Recursive function invocations get improperly recorded on the inspector pane, namely in the backtrack step
   - [x] Add frame information to the trace step and rewrite frontend trace grouping by frame id.
   - [x] Use a doubly-linked linked list to allow forward and backward steps
-- [ ] Refactor TraceStep to be a frozen dataclass within the python tracer
+- [x] Refactor TraceStep to be a frozen dataclass within the python tracer
 
 ### Days thoughts 14/07/2026
 

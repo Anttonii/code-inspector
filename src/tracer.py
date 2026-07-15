@@ -37,7 +37,7 @@ class BoolCondition:
         return f" {self.operator} ".join(str(c) for c in self.conditions)
 
 
-@dataclass()
+@dataclass(frozen=True)
 class TraceStep:
     line: int
     vars: Dict[str, Any]
@@ -45,7 +45,7 @@ class TraceStep:
     frame_id: int
     parent_frame_id: int | None
     func_name: str
-    conditional: BoolCondition | ConditionalStatement | None = None
+    conditional: BoolCondition | ConditionalStatement | None
 
 @dataclass(frozen=True)
 class ErrorInfo:
@@ -175,6 +175,10 @@ class ExecutionTracer:
             if frame.f_back and frame.f_back in self.frame_to_id:
                 parent_frame_id = self.frame_to_id[frame.f_back]
 
+            conditional = None
+            if line_no in self.analyzer.conditionals:
+                conditional = self.analyzer.conditionals[line_no]
+
             call_trace = TraceStep(
                 line=line_no,
                 vars=locals_dict,
@@ -182,11 +186,8 @@ class ExecutionTracer:
                 func_name=func_name,
                 frame_id=current_frame_id,
                 parent_frame_id=parent_frame_id,
-                conditional=None,
+                conditional=conditional,
             )
-
-            if line_no in self.analyzer.conditionals:
-                call_trace.conditional = self.analyzer.conditionals[line_no]
 
             self.trace_data.append(call_trace)
 
