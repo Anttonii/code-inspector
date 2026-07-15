@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { TraceStep, WorkerOutput } from './types'
+import type { TracerOutput, WorkerOutput } from './types'
 
 import PyodideWorker from './pyodide.worker?worker'
 
 interface UsePyodideReturn {
-  runCode: (code: string) => Promise<TraceStep[]>
+  runCode: (code: string) => Promise<TracerOutput>
   isReady: boolean
   isRunning: boolean
 }
@@ -24,7 +24,7 @@ export function usePyodide(): UsePyodideReturn {
     }
   }, [])
 
-  const runCode = useCallback((code: string): Promise<TraceStep[]> => {
+  const runCode = useCallback((code: string): Promise<TracerOutput> => {
     return new Promise((resolve, reject) => {
       if (!workerRef.current) {
         reject(new Error('Worker not initialized'))

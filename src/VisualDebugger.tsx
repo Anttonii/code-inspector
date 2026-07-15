@@ -152,12 +152,11 @@ function PythonEditor({
 
     if (isDebugging) {
       exts.push(hideCursorTheme)
+
       if (activeLine) {
-        if (!currentErrorLine) {
-          exts.push(debugLineHighlighter(activeLine, activeLineText))
-        } else {
-          exts.push(errorLineHighlighter(currentErrorLine))
-        }
+        exts.push(debugLineHighlighter(activeLine, activeLineText))
+      } else if (currentErrorLine) {
+        exts.push(errorLineHighlighter(currentErrorLine))
       }
     } else {
       exts.push(customActiveLineHighlighter)
@@ -369,13 +368,15 @@ export default function VisualDebugger() {
 
     try {
       const rawTrace = await runCode(code)
-      if (rawTrace[0].error) {
-        setCurrentError(rawTrace[0].error)
-        setCurrentErrorLine(rawTrace[0].line)
+
+      if (rawTrace.error) {
+        setCurrentError(rawTrace.error.message)
+        setCurrentErrorLine(rawTrace.error.line)
+        return
       }
 
-      const shiftedTrace = rawTrace.map((step, index) => {
-        const nextStep = rawTrace[index + 1]
+      const shiftedTrace = rawTrace.steps.map((step, index) => {
+        const nextStep = rawTrace.steps[index + 1]
 
         const isSameScope = nextStep && nextStep.depth === step.depth
 
@@ -390,7 +391,7 @@ export default function VisualDebugger() {
       if (shiftedTrace.length > 0) {
         setCurrentStep(0)
       } else {
-        alert('Execution finished without any traceable steps.')
+        setCurrentStep(-1)
         setIsDebugging(false)
       }
     } catch (error: any) {

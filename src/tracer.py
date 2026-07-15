@@ -11,6 +11,8 @@ class EnhancedJSONEncoder(json.JSONEncoder):
     def default(self, o):
         if is_dataclass(o):
             return asdict(o)
+        if isinstance(o, ExecutionTracer):
+            return o.to_json()
         return super().default(o)
 
 
@@ -40,9 +42,18 @@ class TraceStep:
     line: int
     vars: Dict[str, Any]
     depth: int
-    error: str | None = None
     conditional: BoolCondition | ConditionalStatement | None = None
 
+@dataclass(frozen=True)
+class ErrorInfo:
+    line: int
+    message: str
+
+@dataclass()
+class TracerData:
+    steps: List[TraceStep]
+    untracked_vars: List[str]
+    error: ErrorInfo | None = None
 
 class NodeVisitor(ast.NodeVisitor):
     def __init__(self):
@@ -107,6 +118,7 @@ class ExecutionTracer:
         self.max_steps = max_steps
         self.analyzer = analyzer
         self.untracked_vars = set()
+        self.error = None
 
     def trace_calls(self, frame, event, arg):
         if event == "call":
@@ -130,7 +142,6 @@ class ExecutionTracer:
                 for k, v in frame.f_locals.items()
                 if not k.startswith("__")
                 if not callable(v)
-                if k not in self.untracked_vars
             }
 
             depth = 0
@@ -144,7 +155,6 @@ class ExecutionTracer:
                 line=line_no,
                 vars=locals_dict,
                 depth=depth,
-                error=None,
                 conditional=None,
             )
 
@@ -162,7 +172,18 @@ class ExecutionTracer:
     def clear(self) -> None:
         self.trace_data = []
         self.step_count = 0
+        self.untracked_vars = set()
+        self.error = None
 
+    def set_error(self, error: ErrorInfo) -> None:
+        self.error = error
+
+    def to_json(self) -> TracerData:
+        return TracerData(
+            steps=self.trace_data,
+            untracked_vars=list(self.untracked_vars),
+            error=self.error
+        )
 
 def execute_and_trace(user_code):
     analyzer = NodeVisitor()
@@ -175,8 +196,9 @@ def execute_and_trace(user_code):
         sys.settrace(None)
         err_line = e.lineno or -1
         
+        tracer.set_error(ErrorInfo(message=traceback.format_exc(), line=err_line))
         return json.dumps(
-            [TraceStep(error=traceback.format_exc(), line=err_line, vars={}, depth=0)],
+            tracer,
             cls=EnhancedJSONEncoder,
         )
 
@@ -199,10 +221,8 @@ def execute_and_trace(user_code):
             tb = tb.tb_next
 
         tracer.clear()
-        tracer.trace_data.append(
-            TraceStep(error=traceback.format_exc(), line=err_line, vars={}, depth=0)
-        )
+        tracer.set_error(ErrorInfo(message=traceback.format_exc(), line=err_line))
     finally:
         sys.settrace(None)
 
-    return json.dumps(tracer.trace_data, cls=EnhancedJSONEncoder)
+    return json.dumps(tracer, cls=EnhancedJSONEncoder)

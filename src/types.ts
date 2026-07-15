@@ -22,12 +22,22 @@ export interface TraceStep {
   line: number
   vars: Record<string, any>
   depth: number
-  error?: string
   conditional?: Conditional
+}
+
+export interface ErrorInfo {
+  line: number
+  message: string
+}
+
+export interface TracerOutput {
+  steps: TraceStep[]
+  untracked_vars: string[]
+  error?: ErrorInfo
 }
 
 export interface WorkerOutput {
   id: string
-  trace?: TraceStep[]
+  trace?: TracerOutput
   error?: string
 }

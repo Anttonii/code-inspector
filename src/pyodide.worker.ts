@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import type { WorkerInput, TraceStep } from './types'
+import type { WorkerInput, TracerOutput } from './types'
 import { loadPyodide } from 'pyodide'
 import tracerPythonCode from './tracer.py?raw'
 
@@ -28,7 +28,7 @@ self.onmessage = async (event: MessageEvent<WorkerInput>) => {
       'execute_and_trace(user_code_string)'
     )
 
-    const trace: TraceStep[] = JSON.parse(resultJson)
+    const trace: TracerOutput = JSON.parse(resultJson)
 
     self.postMessage({ id, trace })
   } catch (error: any) {
