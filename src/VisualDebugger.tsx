@@ -203,11 +203,13 @@ function PythonEditor({
 interface VariableInspectorProps {
   groupedTrace: TraceStep[][]
   currentStep: number
+  untrackedVars: string[]
 }
 
 function VariableInspector({
   groupedTrace,
   currentStep,
+  untrackedVars,
 }: VariableInspectorProps) {
   const activeRowRef = useRef<HTMLTableRowElement>(null)
 
@@ -225,7 +227,11 @@ function VariableInspector({
   const activeIterationBlock = groupedTrace[activeBlockIndex] || []
 
   const allVarNames = Array.from(
-    new Set(activeIterationBlock.flatMap((step) => Object.keys(step.vars)))
+    new Set(
+      activeIterationBlock.flatMap((step) =>
+        Object.keys(step.vars).filter((v) => !untrackedVars.includes(v))
+      )
+    )
   )
 
   const varToString = (v: any) => {
@@ -324,6 +330,7 @@ export default function VisualDebugger() {
 
   const [trace, setTrace] = useState<TraceStep[]>([])
   const [currentStep, setCurrentStep] = useState<number>(-1)
+  const [untrackedVars, setUntrackedVars] = useState<string[]>([])
   const [isDebugging, setIsDebugging] = useState<boolean>(false)
   const [currentError, setCurrentError] = useState<string>('')
   const [currentErrorLine, setCurrentErrorLine] = useState<number>(0)
@@ -387,6 +394,7 @@ export default function VisualDebugger() {
       })
 
       setTrace(shiftedTrace)
+      setUntrackedVars(rawTrace.untracked_vars)
 
       if (shiftedTrace.length > 0) {
         setCurrentStep(0)
@@ -464,6 +472,7 @@ export default function VisualDebugger() {
             <VariableInspector
               groupedTrace={groupedTrace}
               currentStep={currentStep}
+              untrackedVars={untrackedVars}
             />
           ))}
       </div>
