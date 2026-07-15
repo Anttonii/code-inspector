@@ -28,6 +28,14 @@ export interface TraceStep {
   parent_frame_id?: number
 }
 
+export interface TraceStepNode {
+  step: TraceStep
+  stepIndex: number
+  frameIndex: number
+  next: TraceStepNode | null
+  prev: TraceStepNode | null
+}
+
 export interface ErrorInfo {
   line: number
   message: string
@@ -44,3 +52,5 @@ export interface WorkerOutput {
   trace?: TracerOutput
   error?: string
 }
+
+export type FrameMap = { [key: number]: TraceStep[] }

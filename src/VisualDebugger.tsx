@@ -15,12 +15,8 @@ import { RangeSetBuilder } from '@codemirror/state'
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { usePyodide } from './usePyodide'
-import type { TraceStep } from './types'
-import {
-  groupTraceIntoIterations,
-  evaluateStepCondition,
-  buildLinkedTrace,
-} from './processTrace'
+import type { TraceStepNode, FrameMap } from './types'
+import { evaluateStepCondition, buildLinkedTrace } from './processTrace'
 import './VisualDebugger.css'
 
 class ActiveLineTextWidget extends WidgetType {
@@ -33,9 +29,8 @@ class ActiveLineTextWidget extends WidgetType {
 
   toDOM() {
     const span = document.createElement('span')
-    span.className = 'cm-activeLineText' // We will style this later
+    span.className = 'cm-activeLineText'
     span.textContent = this.text
-    // Prevent the widget from hiding the actual code if the user clicks on it
     span.setAttribute('aria-hidden', 'true')
     return span
   }
@@ -205,34 +200,23 @@ function PythonEditor({
 }
 
 interface VariableInspectorProps {
-  groupedTrace: TraceStep[][]
-  currentStep: number
+  frameMap: FrameMap
+  currentNode: TraceStepNode
   untrackedVars: string[]
 }
 
 function VariableInspector({
-  groupedTrace,
-  currentStep,
+  currentNode,
+  frameMap,
   untrackedVars,
 }: VariableInspectorProps) {
   const activeRowRef = useRef<HTMLTableRowElement>(null)
-
-  let activeBlockIndex = 0
-  let stepsCounted = 0
-
-  for (let i = 0; i < groupedTrace.length; i++) {
-    stepsCounted += groupedTrace[i].length
-    if (currentStep < stepsCounted) {
-      activeBlockIndex = i
-      break
-    }
-  }
-
-  const activeIterationBlock = groupedTrace[activeBlockIndex] || []
+  const [currentFrame, setCurrentFrame] = useState<number>(0)
+  const activeFrameBlock = frameMap[currentFrame]
 
   const allVarNames = Array.from(
     new Set(
-      activeIterationBlock.flatMap((step) =>
+      activeFrameBlock.flatMap((step) =>
         Object.keys(step.vars).filter((v) => !untrackedVars.includes(v))
       )
     )
@@ -251,17 +235,19 @@ function VariableInspector({
   }
 
   useEffect(() => {
+    setCurrentFrame(currentNode.step.frame_id)
+
     if (activeRowRef.current) {
       activeRowRef.current.scrollIntoView({
         behavior: 'smooth',
         block: 'nearest',
       })
     }
-  }, [currentStep])
+  }, [currentNode])
 
   return (
     <div className="inspector-pane">
-      {activeIterationBlock.length > 1 && (
+      {activeFrameBlock.length >= 1 && (
         <div className="block-table-container">
           <h4 className="block-table-hero">Block Execution History</h4>
           <div className="block-table">
@@ -277,10 +263,8 @@ function VariableInspector({
                 </tr>
               </thead>
               <tbody>
-                {activeIterationBlock.map((step, idx) => {
-                  const isCurrentExactStep =
-                    idx ===
-                    currentStep - (stepsCounted - activeIterationBlock.length)
+                {activeFrameBlock.map((step, idx) => {
+                  const isCurrentExactStep = idx === currentNode.frameIndex
 
                   return (
                     <tr
@@ -332,8 +316,10 @@ export default function VisualDebugger() {
     localStorage.setItem('debugger_saved_code', code)
   }, [code])
 
-  const [trace, setTrace] = useState<TraceStep[]>([])
-  const [currentStep, setCurrentStep] = useState<number>(-1)
+  const [currentNode, setCurrentNode] = useState<TraceStepNode | null>(null)
+  const [frameMap, setFrameMap] = useState<FrameMap>({})
+  const [traceLength, setTraceLength] = useState<number>(0)
+
   const [untrackedVars, setUntrackedVars] = useState<string[]>([])
   const [isDebugging, setIsDebugging] = useState<boolean>(false)
   const [currentError, setCurrentError] = useState<string>('')
@@ -341,26 +327,21 @@ export default function VisualDebugger() {
 
   const { runCode, isRunning } = usePyodide()
 
-  const groupedTrace = useMemo(() => groupTraceIntoIterations(trace), [trace])
-
-  const activeLine: number | null =
-    currentStep >= 0 ? (trace[currentStep]?.line ?? null) : null
-  const activeLineText: string | null =
-    currentStep >= 0 ? evaluateStepCondition(trace[currentStep]) : null
+  const activeLine: number | null = currentNode ? currentNode.step.line : null
+  const activeLineText: string | null = currentNode
+    ? evaluateStepCondition(currentNode.step)
+    : null
 
   useEffect(() => {
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
-      if (!isDebugging || isRunning) {
+      if (!isDebugging || isRunning || !currentNode) {
         return
       }
 
-      if (event.key === 'ArrowLeft' && currentStep > 0) {
-        setCurrentStep((prev) => prev - 1)
-      } else if (
-        event.key === 'ArrowRight' &&
-        currentStep !== trace.length - 1
-      ) {
-        setCurrentStep((prev) => prev + 1)
+      if (event.key === 'ArrowLeft' && currentNode!.prev) {
+        setCurrentNode((prev) => prev!.prev)
+      } else if (event.key === 'ArrowRight' && currentNode!.next) {
+        setCurrentNode((prev) => prev!.next)
       }
     }
 
@@ -368,17 +349,17 @@ export default function VisualDebugger() {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown)
     }
-  }, [isDebugging, isRunning, currentStep])
+  }, [isDebugging, isRunning, currentNode])
 
   const startDebugging = async () => {
     setIsDebugging(true)
-    setTrace([])
-    setCurrentStep(-1)
+    setCurrentNode(null)
     setCurrentError('')
     setCurrentErrorLine(0)
 
     try {
       const rawTrace = await runCode(code)
+      setTraceLength(rawTrace.steps.length)
 
       if (rawTrace.error) {
         setCurrentError(rawTrace.error.message)
@@ -386,27 +367,12 @@ export default function VisualDebugger() {
         return
       }
 
-      const shiftedTrace = rawTrace.steps.map((step, index) => {
-        const nextStep = rawTrace.steps[index + 1]
+      let newFrameMap = {}
+      const linkedTrace = buildLinkedTrace(rawTrace.steps, 0, null, newFrameMap)
 
-        const isSameScope = nextStep && nextStep.depth === step.depth
-
-        return {
-          ...step,
-          vars: isSameScope ? nextStep.vars : step.vars,
-        }
-      })
-
-      setTrace(shiftedTrace)
+      setCurrentNode(linkedTrace.head)
+      setFrameMap(newFrameMap)
       setUntrackedVars(rawTrace.untracked_vars)
-      console.log(buildLinkedTrace(rawTrace.steps))
-
-      if (shiftedTrace.length > 0) {
-        setCurrentStep(0)
-      } else {
-        setCurrentStep(-1)
-        setIsDebugging(false)
-      }
     } catch (error: any) {
       console.error('Python Execution Error:', error)
       setCurrentError(error.message)
@@ -416,8 +382,7 @@ export default function VisualDebugger() {
 
   const stopDebugging = () => {
     setIsDebugging(false)
-    setTrace([])
-    setCurrentStep(-1)
+    setCurrentNode(null)
   }
 
   return (
@@ -439,23 +404,23 @@ export default function VisualDebugger() {
               </button>
               <button
                 className="toolbar-btn"
-                disabled={currentStep <= 0}
-                onClick={() => setCurrentStep((prev) => prev - 1)}
+                disabled={!currentNode?.prev}
+                onClick={() => setCurrentNode((prev) => prev!.prev)}
               >
                 Step Back
               </button>
               <button
                 className="toolbar-btn"
-                disabled={currentStep === trace.length - 1}
-                onClick={() => setCurrentStep((prev) => prev + 1)}
+                disabled={!currentNode?.next}
+                onClick={() => setCurrentNode((prev) => prev!.next)}
               >
                 Step Forward
               </button>
             </div>
-            {trace.length > 0 && (
+            {traceLength > 0 && currentNode && (
               <div className="toolbar-container">
                 <span className="step-text">
-                  Step {currentStep + 1} / {trace.length}
+                  Step {currentNode!.stepIndex + 1} / {traceLength}
                 </span>
               </div>
             )}
@@ -476,11 +441,13 @@ export default function VisualDebugger() {
           (currentError ? (
             <ErrorInspector errorText={currentError} />
           ) : (
-            <VariableInspector
-              groupedTrace={groupedTrace}
-              currentStep={currentStep}
-              untrackedVars={untrackedVars}
-            />
+            currentNode && (
+              <VariableInspector
+                currentNode={currentNode}
+                untrackedVars={untrackedVars}
+                frameMap={frameMap}
+              />
+            )
           ))}
       </div>
     </div>

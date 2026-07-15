@@ -126,6 +126,13 @@ class ExecutionTracer:
         self.frame_to_id = {}
         self.next_frame_id = 0
 
+    def _copy_or_pass(self, v: Any):
+        if isinstance(v, list):
+            return list(v)
+        if isinstance(v, dict):
+            return dict(v)
+        return v
+
     def trace_calls(self, frame, event, arg):
         if event == "call":
             if frame.f_code.co_name == "untrack_vars":
@@ -144,7 +151,7 @@ class ExecutionTracer:
                 )
 
             locals_dict = {
-                k: v
+                k: self._copy_or_pass(v)
                 for k, v in frame.f_locals.items()
                 if not k.startswith("__")
                 if not callable(v)

@@ -1,15 +1,16 @@
-import type { TraceStep, Conditional, CompareCondition } from './types'
-
-export interface TraceStepNode {
-  step: TraceStep
-  next: TraceStepNode | null
-  prev: TraceStepNode | null
-}
+import type {
+  TraceStep,
+  Conditional,
+  CompareCondition,
+  FrameMap,
+  TraceStepNode,
+} from './types'
 
 export function buildLinkedTrace(
   trace: TraceStep[],
   startIndex = 0,
-  prevNode: TraceStepNode | null = null
+  prevNode: TraceStepNode | null = null,
+  frameMap: FrameMap = {}
 ): {
   head: TraceStepNode | null
   tail: TraceStepNode | null
@@ -19,9 +20,13 @@ export function buildLinkedTrace(
     return { head: null, tail: null, resumeIndex: startIndex }
   }
 
-  // The first step belongs to the current frame
+  const startStep = trace[startIndex]
+  frameMap[startStep.frame_id] = [startStep]
+
   const head: TraceStepNode = {
-    step: trace[startIndex],
+    step: startStep,
+    stepIndex: startIndex,
+    frameIndex: 0,
     next: null,
     prev: prevNode,
   }
@@ -31,28 +36,12 @@ export function buildLinkedTrace(
   while (i < trace.length) {
     const step = trace[i]
 
-    // Scenario A: Standard execution within the same frame
-    // or the backstep from a child back to its parent.
-    if (
-      step.frame_id === current.step.frame_id ||
-      step.frame_id === current.step.parent_frame_id
-    ) {
-      const newNode: TraceStepNode = {
-        step,
-        next: null,
-        prev: current,
-      }
-      current.next = newNode
-      current = newNode
-      i++
-    }
-    // Scenario B: We step INTO a child function
-    else if (step.parent_frame_id === current.step.frame_id) {
+    if (step.parent_frame_id === current.step.frame_id) {
       let {
         head: childHead,
         resumeIndex,
         tail: childTail,
-      } = buildLinkedTrace(trace, i)
+      } = buildLinkedTrace(trace, i, null, frameMap)
       if (childHead && childTail) {
         childHead.prev = current
         current.next = childHead
@@ -60,41 +49,24 @@ export function buildLinkedTrace(
       }
       i = resumeIndex + 1
     } else {
-      break
+      const frameIndex = frameMap[step.frame_id].length
+      frameMap[step.frame_id].push(step)
+
+      const newNode: TraceStepNode = {
+        step,
+        stepIndex: i,
+        frameIndex: frameIndex,
+        next: null,
+        prev: current,
+      }
+      current.next = newNode
+      current = newNode
+      i++
     }
   }
 
   // Return the linked list head, and where the parent should resume reading
   return { head, resumeIndex: i, tail: current }
-}
-
-export function groupTraceIntoIterations(trace: TraceStep[]): TraceStep[][] {
-  const iterations: TraceStep[][] = []
-  let currentIteration: TraceStep[] = []
-
-  for (let i = 0; i < trace.length; i++) {
-    const step = trace[i]
-    const prevStep = trace[i - 1]
-
-    // If the current line is less than or equal to the previous line,
-    // we have jumped backwards (starting a new loop iteration)
-    // Additionally check if there has been a change in stack depth.
-    if (
-      prevStep &&
-      (step.line <= prevStep.line || step.depth !== prevStep.depth)
-    ) {
-      iterations.push(currentIteration)
-      currentIteration = [step]
-    } else {
-      currentIteration.push(step)
-    }
-  }
-
-  if (currentIteration.length > 0) {
-    iterations.push(currentIteration)
-  }
-
-  return iterations
 }
 
 function resolvePath(path: string, data: Record<string, any>): any {
