@@ -447,11 +447,13 @@ export default function VisualDebugger() {
                 Step Forward
               </button>
             </div>
-            <div className="toolbar-container">
-              <span className="step-text">
-                Step {currentStep + 1} / {trace.length}
-              </span>
-            </div>
+            {trace.length > 0 && (
+              <div className="toolbar-container">
+                <span className="step-text">
+                  Step {currentStep + 1} / {trace.length}
+                </span>
+              </div>
+            )}
           </>
         )}
       </div>
