@@ -2,7 +2,6 @@ import ast
 import json
 import sys
 import traceback
-import types
 from collections import defaultdict
 from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any, Dict, List, Union

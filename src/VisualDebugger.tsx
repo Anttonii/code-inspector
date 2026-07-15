@@ -336,6 +336,26 @@ export default function VisualDebugger() {
   const activeLineText: string | null =
     currentStep >= 0 ? evaluateStepCondition(trace[currentStep]) : null
 
+  useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      if (!isDebugging) {
+        return
+      }
+
+      if (event.key === 'ArrowLeft') {
+        setCurrentStep((prev) => prev - 1)
+      } else if (event.key === 'ArrowRight') {
+        setCurrentStep((prev) => prev + 1)
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown)
+    }
+  }, [isDebugging])
+
   const startDebugging = async () => {
     setIsDebugging(true)
     setTrace([])
