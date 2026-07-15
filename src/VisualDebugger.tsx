@@ -147,6 +147,7 @@ function PythonEditor({
     const exts: Extension[] = [
       python(),
       syntaxHighlighting(customSyntaxHighlighting),
+      EditorView.lineWrapping,
     ]
 
     if (isDebugging) {
@@ -193,6 +194,7 @@ function PythonEditor({
           foldGutter: false,
           highlightActiveLine: false,
           lineNumbers: false,
+          autocompletion: false,
         }}
       />
     </div>
@@ -338,23 +340,25 @@ export default function VisualDebugger() {
 
   useEffect(() => {
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
-      if (!isDebugging) {
+      if (!isDebugging || isRunning) {
         return
       }
 
-      if (event.key === 'ArrowLeft') {
+      if (event.key === 'ArrowLeft' && currentStep > 0) {
         setCurrentStep((prev) => prev - 1)
-      } else if (event.key === 'ArrowRight') {
+      } else if (
+        event.key === 'ArrowRight' &&
+        currentStep !== trace.length - 1
+      ) {
         setCurrentStep((prev) => prev + 1)
       }
     }
 
     window.addEventListener('keydown', handleGlobalKeyDown)
-
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown)
     }
-  }, [isDebugging])
+  }, [isDebugging, isRunning, currentStep])
 
   const startDebugging = async () => {
     setIsDebugging(true)

@@ -3,6 +3,9 @@
 ### Days thoughts 15/07/2026
 
 - [x] Move steps forward and backward with key presses
+- [x] Move the inspector pane to the right of the code editor
+- [x] Configure line wrapping for the code editor
+- [ ] Untrack should only hide the untracked variables from inspector pane, not remove them from recorded vars
 
 ### Days thoughts 14/07/2026
 
