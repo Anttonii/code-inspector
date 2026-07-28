@@ -152,13 +152,6 @@ class ExecutionTracer:
             if line_no in self.analyzer.untracked_lines:
                 return self.trace_calls
 
-            self.step_count += 1
-            if self.step_count > self.max_steps:
-                sys.settrace(None)
-                raise RuntimeError(
-                    f"Execution halted: Exceeded {self.max_steps} steps."
-                )
-
             locals_dict = {
                 k: self._copy_or_pass(v)
                 for k, v in frame.f_locals.items()
@@ -193,6 +186,13 @@ class ExecutionTracer:
             conditional = None
             if line_no in self.analyzer.conditionals:
                 conditional = self.analyzer.conditionals[line_no]
+
+            self.step_count += 1
+            if self.step_count > self.max_steps:
+                sys.settrace(None)
+                raise RuntimeError(
+                    f"Execution halted: Exceeded {self.max_steps} steps."
+                )
 
             call_trace = TraceStep(
                 line=line_no,
