@@ -5,12 +5,12 @@ import io
 import traceback
 from collections import defaultdict
 from dataclasses import asdict, dataclass, is_dataclass
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 
 
 class EnhancedJSONEncoder(json.JSONEncoder):
-    def default(self, o):
-        if is_dataclass(o):
+    def default(self, o: Any):
+        if is_dataclass(o) and not isinstance(o, type):
             return asdict(o)
         if isinstance(o, ExecutionTracer):
             return o.to_json()
@@ -31,7 +31,7 @@ class ConditionalStatement:
 @dataclass(frozen=True)
 class BoolCondition:
     operator: str
-    conditions: List[Union["BoolCondition", ConditionalStatement]]
+    conditions: list
     type: str = "bool"
 
     def __str__(self) -> str:
@@ -48,10 +48,12 @@ class TraceStep:
     func_name: str
     conditional: BoolCondition | ConditionalStatement | None
 
+
 @dataclass(frozen=True)
 class ErrorInfo:
     line: int
     message: str
+
 
 @dataclass(frozen=True)
 class TracerData:
@@ -60,14 +62,15 @@ class TracerData:
     stdout: dict[int, str]
     error: ErrorInfo | None
 
+
 class NodeVisitor(ast.NodeVisitor):
     def __init__(self):
-        self.conditionals = defaultdict(dataclass)
+        self.conditionals = {}
         self.untracked_lines = set()
 
     def parse_condition(
         self, node: ast.AST
-    ) -> Union[ConditionalStatement, BoolCondition]:
+    ) -> ConditionalStatement | BoolCondition:
         op_map = {
             ast.Eq: "==",
             ast.NotEq: "!=",
@@ -115,6 +118,7 @@ class NodeVisitor(ast.NodeVisitor):
 
         self.generic_visit(node)
 
+
 class ExecutionTracer:
     def __init__(self, analyzer: NodeVisitor, max_steps: int = 2000):
         self.trace_data = []
@@ -137,10 +141,7 @@ class ExecutionTracer:
         return v
 
     def trace_calls(self, frame, event, arg):
-        untraced_calls = [
-            "untrack_vars",
-            "print_override"
-        ]
+        untraced_calls = ["untrack_vars", "print_override"]
 
         if event == "call":
             if frame.f_code.co_name in untraced_calls:
@@ -171,11 +172,11 @@ class ExecutionTracer:
             while curr:
                 depth += 1
                 curr = curr.f_back
-            
+
             if frame not in self.frame_to_id:
                 self.frame_to_id[frame] = self.next_frame_id
                 self.next_frame_id += 1
-            
+
             current_frame_id = self.frame_to_id[frame]
             func_name = frame.f_code.co_name
 
@@ -206,11 +207,11 @@ class ExecutionTracer:
             self.trace_data.append(call_trace)
 
         return self.trace_calls
-    
+
     def untrack_vars(self, *var_names):
         for name in var_names:
             self.untracked_vars.add(str(name))
-    
+
     def print_override(self, *args, **kwargs):
         output = io.StringIO()
         print(*args, file=output, **kwargs)
@@ -232,8 +233,9 @@ class ExecutionTracer:
             steps=self.trace_data,
             untracked_vars=list(self.untracked_vars),
             error=self.error,
-            stdout=self.stdout
+            stdout=self.stdout,
         )
+
 
 def execute_and_trace(user_code):
     analyzer = NodeVisitor()
@@ -245,8 +247,10 @@ def execute_and_trace(user_code):
     except SyntaxError as e:
         sys.settrace(None)
         err_line = e.lineno or -1
-        
-        tracer.set_error(ErrorInfo(message=traceback.format_exc(), line=err_line))
+
+        tracer.set_error(
+            ErrorInfo(message=traceback.format_exc(), line=err_line)
+        )
         return json.dumps(
             tracer,
             cls=EnhancedJSONEncoder,
@@ -273,10 +277,10 @@ def execute_and_trace(user_code):
             tb = tb.tb_next
 
         tracer.clear()
-        tracer.set_error(ErrorInfo(message=traceback.format_exc(), line=err_line))
+        tracer.set_error(
+            ErrorInfo(message=traceback.format_exc(), line=err_line)
+        )
     finally:
         sys.settrace(None)
 
-    print(tracer.stdout)
-    print(tracer.trace_data)
     return json.dumps(tracer, cls=EnhancedJSONEncoder)
