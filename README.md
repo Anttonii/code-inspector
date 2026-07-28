@@ -2,7 +2,7 @@
 
 Visual debugger for Python code. Uses React and CodeMirror for the code editor and Pyodide to execute Python within the browser.
 
-![The visual debugger](assets/example.png "Code-Inspector")
+![The visual debugger](assets/example.png 'Code-Inspector')
 
 The debugger runs entirely in the browser, using [pyodide](https://pyodide.org/en/stable/) to execute Python code with no need for internet access.
 
@@ -12,7 +12,7 @@ There is no special installation process, simply:
 
 ```sh
 # Install dependencies
-yarn
+yarn install
 # Run the application
-yarn run dev
+yarn dev
 ```

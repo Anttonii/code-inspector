@@ -259,7 +259,7 @@ function VariableInspector({
             <h4>Block Execution History</h4>
             {currentFunc && (
               <h4>
-                Function:{" "}
+                Function:{' '}
                 <span className="block-table-func">{currentFunc}</span>
               </h4>
             )}
@@ -371,9 +371,11 @@ export default function VisualDebugger() {
   useEffect(() => {
     let newConsoleOutput = ''
     if (currentNode) {
+      let terminalIndex = 0
       for (const [key, value] of Object.entries(tracerStdOut)) {
         if (parseInt(key) <= currentNode.stepIndex) {
-          newConsoleOutput += value
+          newConsoleOutput += `[${terminalIndex}] ${value}`
+          terminalIndex += 1
         } else {
           break
         }
@@ -482,7 +484,12 @@ export default function VisualDebugger() {
             )
           ))}
       </div>
-      {consoleOutput && <div className="terminal">{consoleOutput}</div>}
+      <div className="terminal-window">
+        <div className="terminal-header">
+          <h2 className="terminal-output">Output</h2>
+        </div>
+        <div className="terminal">{consoleOutput}</div>
+      </div>
     </div>
   )
 }

@@ -230,3 +230,16 @@ div.block-tabler-header > h4 {
 
   white-space: pre-wrap;
 }
+
+.terminal-window {
+  border-top: 1px solid #e1e4e8;
+}
+
+.terminal-header {
+  padding: 8px;
+}
+
+.terminal-output {
+  font-size: 16px;
+  margin: 0;
+}
