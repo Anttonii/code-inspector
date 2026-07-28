@@ -212,6 +212,7 @@ function VariableInspector({
 }: VariableInspectorProps) {
   const activeRowRef = useRef<HTMLTableRowElement>(null)
   const [currentFrame, setCurrentFrame] = useState<number>(0)
+  const [currentFunc, setCurrentFunc] = useState<string | null>(null)
   const activeFrameBlock = frameMap[currentFrame]
 
   const allVarNames = Array.from(
@@ -236,6 +237,11 @@ function VariableInspector({
 
   useEffect(() => {
     setCurrentFrame(currentNode.step.frame_id)
+    if (currentNode.step.func_name != '<module>') {
+      setCurrentFunc(currentNode.step.func_name)
+    } else {
+      setCurrentFunc(null)
+    }
 
     if (activeRowRef.current) {
       activeRowRef.current.scrollIntoView({
@@ -249,7 +255,15 @@ function VariableInspector({
     <div className="inspector-pane">
       {activeFrameBlock.length >= 1 && (
         <div className="block-table-container">
-          <h4 className="block-table-hero">Block Execution History</h4>
+          <div className="block-tabler-header">
+            <h4>Block Execution History</h4>
+            {currentFunc && (
+              <h4>
+                Function:{" "}
+                <span className="block-table-func">{currentFunc}</span>
+              </h4>
+            )}
+          </div>
           <div className="block-table">
             <table className="var-table font-small">
               <thead>

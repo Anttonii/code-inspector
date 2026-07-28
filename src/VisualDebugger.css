@@ -106,9 +106,20 @@
   max-height: 100%;
 }
 
-.block-table-hero {
+.block-tabler-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
   margin: 0 0 12px 0;
+}
+
+div.block-tabler-header > h4 {
+  margin: 0;
   color: #555;
+}
+
+.block-table-func {
+  color: rgb(151, 78, 151);
 }
 
 .block-table {
